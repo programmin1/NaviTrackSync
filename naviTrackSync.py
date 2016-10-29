@@ -54,6 +54,27 @@ def get_lan_ip():
     return ip
 
 
+def getLatestTime( gpxfile ):
+    import xml.etree.ElementTree as ET
+    import time
+    import datetime
+    
+    tree = ET.parse( gpxfile )
+    root = tree.getroot()
+    #elements are {http://www.topografix.com/GPX/1/1}TAGNAME so adjust, find time:
+    newestTime = 0
+    for t in root.iter( root.tag.replace('gpx','time') ):
+	timestr = t.text
+	dt = datetime.datetime.strptime( timestr, "%Y-%m-%dT%H:%M:%SZ")
+	timeNum = time.mktime( dt.timetuple() )
+	if timeNum > newestTime:
+	    newestTime = timeNum
+    if newestTime == 0:
+	raise ValueError
+    
+    return newestTime
+	
+
 class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 	"""
 		Core of the sync process - handle requests for files to send, 
@@ -102,8 +123,13 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 				filename = query['filename'][0].replace(os.sep, '')
 				print "Receiving", filename
 				# Receive the file POST, write to filename:
-				file(filename, 'w').write( gpx )
+				with open(filename, 'w') as gpxfile:
+				    gpxfile.write( gpx )
 				print 'Downloaded', filename
+				#Set file time to the time the file is, not all just the time downloaded:
+				with open(filename, 'r') as gpxfile:
+				    lastTS = getLatestTime(gpxfile)
+				    os.utime( filename, (lastTS, lastTS) )
 				
 		#pprint(vars(s));
 
